@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IoT Dashboard - ESP32 Monitor</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: #0f0f23;
+            color: #fff;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+            opacity: 0.05;
+            z-index: -1;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 30px;
+        }
+
+        /* HEADER */
+        header {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 30px;
+            padding: 35px 45px;
+            margin-bottom: 40px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 25px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #667eea, #764ba2, #f093fb, #667eea);
+            background-size: 200% 100%;
+            animation: gradientMove 3s linear infinite;
+        }
+
+        @keyframes gradientMove {
+            0% { background-position: 0% 0%; }
+            100% { background-position: 200% 0%; }
+        }
+
+        .header-left h1 {
+            font-size: 2.8em;
+            font-weight: 800;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 8px;
+            letter-spacing: -1px;
+        }
+
+        .header-left p {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 1.1em;
+            font-weight: 300;
+        }
+
+        .header-right {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            align-items: flex-end;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 28px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 0.95em;
+            transition: all 0.3s ease;
+        }
+
+        .status-badge.online {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            border-color: rgba(56, 239, 125, 0.5);
+            box-shadow: 0 0 30px rgba(56, 239, 125, 0.3);
+        }
+
+        .status-dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.5);
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        .status-badge.online .status-dot {
+            background: white;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.2); opacity: 0.7; }
+        }
+
+        .last-update {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 0.85em;
+            text-align: right;
+        }
+
+        .last-update strong {
+            color: rgba(255, 255, 255, 0.9);
+            font-weight: 600;
+        }
+
+        /* LOADING */
+        .loading {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 60px;
+            border-radius: 30px;
+            text-align: center;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 25px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading h2 {
+            font-size: 1.8em;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #667eea 0%, #f093fb 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        /* ERROR */
+        .error {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
+            padding: 25px;
+            border-radius: 20px;
+            text-align: center;
+            margin-bottom: 30px;
+            box-shadow: 0 8px 32px rgba(255, 107, 107, 0.4);
+        }
+
+        /* DASHBOARD */
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 25px;
+            padding: 35px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--card-color-1), var(--card-color-2));
+            opacity: 0.8;
+        }
+
+        .card:hover {
+            transform: translateY(-10px) scale(1.02);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .card:nth-child(1) {
+            --card-color-1: #667eea;
+            --card-color-2: #764ba2;
+        }
+
+        .card:nth-child(2) {
+            --card-color-1: #f093fb;
+            --card-color-2: #f5576c;
+        }
+
+        .card:nth-child(3) {
+            --card-color-1: #feca57;
+            --card-color-2: #ff9ff3;
+        }
+
+        .card:nth-child(4) {
+            --card-color-1: #11998e;
+            --card-color-2: #38ef7d;
+        }
+
+        .card:nth-child(5) {
+            --card-color-1: #764ba2;
+            --card-color-2: #667eea;
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+
+        .icon {
+            width: 70px;
+            height: 70px;
+            background: linear-gradient(135deg, var(--card-color-1), var(--card-color-2));
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2em;
+            margin-right: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .card-title-container {
+            flex: 1;
+        }
+
+        .card-title {
+            font-size: 0.75em;
+            color: rgba(255, 255, 255, 0.5);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+
+        .card-subtitle {
+            font-size: 0.85em;
+            color: rgba(255, 255, 255, 0.7);
+            font-weight: 300;
+        }
+
+        .card-value {
+            font-size: 3.5em;
+            font-weight: 800;
+            color: white;
+            margin: 20px 0;
+            line-height: 1;
+            text-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .card-unit {
+            font-size: 0.35em;
+            color: rgba(255, 255, 255, 0.6);
+            font-weight: 600;
+            margin-left: 8px;
+        }
+
+        .card-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 15px 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            font-size: 0.9em;
+            font-weight: 500;
+            color: rgba(255, 255, 255, 0.8);
+            margin-top: 20px;
+        }
+
+        .card-info::before {
+            content: '●';
+            font-size: 1.5em;
+            color: var(--card-color-2);
+        }
+
+        /* LED AUTOMÁTICO */
+        .led-card {
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(246, 211, 101, 0.1));
+            border-color: rgba(246, 211, 101, 0.3);
+        }
+
+        .led-status {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin: 25px 0;
+        }
+
+        .led-indicator {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.5em;
+            box-shadow: inset 0 4px 15px rgba(0, 0, 0, 0.3);
+            transition: all 0.4s ease;
+        }
+
+        .led-indicator.on {
+            background: linear-gradient(135deg, #feca57, #ff9ff3);
+            box-shadow: 0 0 40px rgba(254, 202, 87, 0.8), 0 0 80px rgba(254, 202, 87, 0.5);
+            animation: ledGlow 2s ease-in-out infinite;
+        }
+
+        @keyframes ledGlow {
+            0%, 100% { 
+                box-shadow: 0 0 40px rgba(254, 202, 87, 0.8), 0 0 80px rgba(254, 202, 87, 0.5);
+            }
+            50% { 
+                box-shadow: 0 0 60px rgba(254, 202, 87, 1), 0 0 120px rgba(254, 202, 87, 0.7);
+            }
+        }
+
+        .led-text {
+            font-size: 2em;
+            font-weight: 800;
+            color: white;
+            text-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        /* MODO AUTOMÁTICO */
+        .auto-mode {
+            background: rgba(56, 239, 125, 0.1);
+            padding: 20px;
+            border-radius: 20px;
+            border: 2px solid rgba(56, 239, 125, 0.3);
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .auto-mode-title {
+            font-size: 0.9em;
+            color: rgba(56, 239, 125, 1);
+            font-weight: 700;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .auto-mode-desc {
+            font-size: 0.85em;
+            color: rgba(255, 255, 255, 0.7);
+            line-height: 1.5;
+        }
+
+        .distance-threshold {
+            margin-top: 15px;
+            padding: 12px 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            display: inline-block;
+        }
+
+        .distance-threshold strong {
+            color: #feca57;
+            font-size: 1.2em;
+        }
+
+        /* HISTORIAL */
+        .history-section {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 30px;
+            padding: 40px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 35px;
+            padding-bottom: 25px;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .history-header h2 {
+            font-size: 2em;
+            font-weight: 800;
+            background: linear-gradient(135deg, #667eea 0%, #f093fb 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .btn {
+            padding: 14px 32px;
+            border: none;
+            border-radius: 50px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.95em;
+            font-family: 'Poppins', sans-serif;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.6);
+        }
+
+        .history-list {
+            max-height: 600px;
+            overflow-y: auto;
+            padding-right: 10px;
+        }
+
+        .history-item {
+            display: grid;
+            grid-template-columns: 160px 1fr;
+            gap: 25px;
+            padding: 25px;
+            margin-bottom: 15px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .history-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: rgba(255, 255, 255, 0.1);
+            transform: translateX(5px);
+        }
+
+        .history-time {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .time-main {
+            font-size: 1.3em;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea, #f093fb);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .time-date {
+            font-size: 0.85em;
+            color: rgba(255, 255, 255, 0.5);
+            margin-top: 5px;
+        }
+
+        .history-data {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px;
+            align-items: center;
+        }
+
+        .data-pill {
+            padding: 10px 18px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 50px;
+            font-size: 0.85em;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.9);
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .data-pill:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        /* SCROLLBAR */
+        ::-webkit-scrollbar {
+            width: 10px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(135deg, #764ba2, #f093fb);
+        }
+
+        /* RESPONSIVE */
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+            }
+
+            header {
+                flex-direction: column;
+                text-align: center;
+                padding: 30px;
+            }
+
+            .header-left h1 {
+                font-size: 2em;
+            }
+
+            .header-right {
+                align-items: center;
+            }
+
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+
+            .card-value {
+                font-size: 3em;
+            }
+
+            .history-item {
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
+
+            .history-data {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- HEADER -->
+        <header>
+            <div class="header-left">
+                <h1>⚡ IoT Dashboard</h1>
+                <p>Sistema de Monitoreo ESP32 - Control Automático</p>
+            </div>
+            <div class="header-right">
+                <div class="status-badge" id="status">
+                    <span class="status-dot"></span>
+                    <span>Desconectado</span>
+                </div>
+                <div class="last-update">
+                    <small>Última actualización</small><br>
+                    <strong id="lastUpdate">--</strong>
+                </div>
+            </div>
+        </header>
+
+        <!-- LOADING -->
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <h2>Conectando con ESP32</h2>
+            <p style="color: rgba(255,255,255,0.6); margin-top: 10px;">Cargando datos del sistema...</p>
+        </div>
+
+        <!-- ERROR -->
+        <div id="error" class="error" style="display:none;">
+            <h2 style="margin-bottom: 10px;">⚠️ Error de Conexión</h2>
+            <p id="errorMessage"></p>
+        </div>
+
+        <!-- DASHBOARD -->
+        <div class="dashboard" id="dashboard" style="display:none;">
+            <!-- TEMPERATURA -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="icon">🌡️</div>
+                    <div class="card-title-container">
+                        <div class="card-title">Temperatura</div>
+                        <div class="card-subtitle">Sensor DHT11</div>
+                    </div>
+                </div>
+                <div class="card-value" id="temperature">--<span class="card-unit">°C</span></div>
+                <div class="card-info" id="tempInfo">Esperando datos...</div>
+            </div>
+
+            <!-- HUMEDAD -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="icon">💧</div>
+                    <div class="card-title-container">
+                        <div class="card-title">Humedad</div>
+                        <div class="card-subtitle">Relativa Ambiental</div>
+                    </div>
+                </div>
+                <div class="card-value" id="humidity">--<span class="card-unit">%</span></div>
+                <div class="card-info" id="humidityInfo">Esperando datos...</div>
+            </div>
+
+            <!-- LUZ -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="icon">☀️</div>
+                    <div class="card-title-container">
+                        <div class="card-title">Luminosidad</div>
+                        <div class="card-subtitle">Sensor LDR</div>
+                    </div>
+                </div>
+                <div class="card-value" id="light">--<span class="card-unit">lux</span></div>
+                <div class="card-info" id="lightInfo">Esperando datos...</div>
+            </div>
+
+            <!-- DISTANCIA -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="icon">📏</div>
+                    <div class="card-title-container">
+                        <div class="card-title">Distancia</div>
+                        <div class="card-subtitle">Ultrasónico HC-SR04</div>
+                    </div>
+                </div>
+                <div class="card-value" id="distance">--<span class="card-unit">cm</span></div>
+                <div class="card-info" id="distanceInfo">Esperando datos...</div>
+            </div>
+
+            <!-- LED AUTOMÁTICO -->
+            <div class="card led-card">
+                <div class="card-header">
+                    <div class="icon">💡</div>
+                    <div class="card-title-container">
+                        <div class="card-title">LED Automático</div>
+                        <div class="card-subtitle">Control por Proximidad</div>
+                    </div>
+                </div>
+                <div class="led-status">
+                    <div class="led-indicator" id="ledIndicator">💡</div>
+                    <div class="led-text" id="ledText">APAGADO</div>
+                </div>
+                <div class="auto-mode">
+                    <div class="auto-mode-title">🤖 Modo Automático Activo</div>
+                    <div class="auto-mode-desc">
+                        El LED se enciende automáticamente cuando detecta objetos cercanos
+                    </div>
+                    <div class="distance-threshold">
+                        Umbral: <strong id="ledThreshold">< 20 cm</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- HISTORIAL -->
+        <div class="history-section" id="historySection" style="display:none;">
+            <div class="history-header">
+                <h2>📊 Historial de Lecturas</h2>
+                <button class="btn btn-primary" onclick="refreshData()">🔄 Actualizar</button>
+            </div>
+            <div class="history-list" id="historyList"></div>
+        </div>
+    </div>
+
+    <script>
+        // ⚠️ CAMBIA ESTA URL POR LA DE TU API EN RENDER
+        const API_URL = 'https://mongo-a.onrender.com/data';
+        
+        let isFirstLoad = true;
+        let updateInterval;
+
+        async function fetchData() {
+            try {
+                const response = await fetch(API_URL);
+                
+                if (!response.ok) {
+                    throw new Error(`Error HTTP ${response.status}`);
+                }
+                
+                const result = await response.json();
+                
+                if (result.success && result.data && result.data.length > 0) {
+                    const latestData = result.data[0];
+                    updateDashboard(latestData);
+                    updateHistory(result.data);
+                    showOnlineStatus();
+                    hideError();
+                    
+                    if (isFirstLoad) {
+                        document.getElementById('loading').style.display = 'none';
+                        document.getElementById('dashboard').style.display = 'grid';
+                        document.getElementById('historySection').style.display = 'block';
+                        isFirstLoad = false;
+                    }
+                } else {
+                    throw new Error('No hay datos del ESP32');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showError(error.message);
+                showOfflineStatus();
+                
+                if (isFirstLoad) {
+                    document.getElementById('loading').style.display = 'none';
+                }
+            }
+        }
+
+        function updateDashboard(data) {
+            // TEMPERATURA
+            const temp = data.temperature || 0;
+            document.getElementById('temperature').innerHTML = 
+                temp.toFixed(1) + '<span class="card-unit">°C</span>';
+            
+            let tempStatus = temp < 20 ? '❄️ Ambiente Frío' : temp > 30 ? '🔥 Ambiente Caliente' : '✨ Temperatura Óptima';
+            document.getElementById('tempInfo').textContent = tempStatus;
+
+            // HUMEDAD
+            const hum = data.humidity || 0;
+            document.getElementById('humidity').innerHTML = 
+                hum.toFixed(1) + '<span class="card-unit">%</span>';
+            
+            let humStatus = hum < 30 ? '🏜️ Ambiente Seco' : hum > 70 ? '💦 Muy Húmedo' : '✨ Humedad Ideal';
+            document.getElementById('humidityInfo').textContent = humStatus;
+
+            // LUZ
+            const light = data.light || 0;
+            document.getElementById('light').innerHTML = 
+                light + '<span class="card-unit">lux</span>';
+            
+            let lightStatus = light < 100 ? '🌙 Oscuridad' : light > 500 ? '☀️ Muy Iluminado' : '💡 Iluminación Normal';
+            document.getElementById('lightInfo').textContent = lightStatus;
+
+            // DISTANCIA
+            const dist = data.distance_cm || 0;
+            document.getElementById('distance').innerHTML = 
+                dist.toFixed(2) + '<span class="card-unit">cm</span>';
+            
+            let distStatus;
+            if (dist < 10) {
+                distStatus = '🚨 ¡Objeto Muy Cerca!';
+            } else if (dist < 20) {
+                distStatus = '⚠️ Objeto Detectado - LED Activado';
+            } else if (dist < 50) {
+                distStatus = '📍 Objeto en Rango';
+            } else {
+                distStatus = '✅ Área Totalmente Despejada';
+            }
+            document.getElementById('distanceInfo').textContent = distStatus;
+
+            // LED AUTOMÁTICO
+            const ledIndicator = document.getElementById('ledIndicator');
+            const ledText = document.getElementById('ledText');
+            
+            if (data.led_state) {
+                ledIndicator.classList.add('on');
+                ledText.textContent = 'ENCENDIDO';
+                ledText.style.color = '#feca57';
+            } else {
+                ledIndicator.classList.remove('on');
+                ledText.textContent = 'APAGADO';
+                ledText.style.color = 'white';
+            }
+
+            // ÚLTIMA ACTUALIZACIÓN
+            const date = new Date(data.timestamp);
+            document.getElementById('lastUpdate').textContent = date.toLocaleString('es-ES');
+        }
+
+        function updateHistory(dataArray) {
+            const historyList = document.getElementById('historyList');
+            const last20 = dataArray.slice(0, 20);
+            
+            historyList.innerHTML = last20.map(data => {
+                const date = new Date(data.timestamp);
+                const timeString = date.toLocaleTimeString('es-ES');
+                const dateString = date.toLocaleDateString('es-ES');
+                
+                return `
+                    <div class="history-item">
+                        <div class="history-time">
+                            <div class="time-main">${timeString}</div>
+                            <div class="time-date">${dateString}</div>
+                        </div>
+                        <div class="history-data">
+                            <span class="data-pill">🌡️ ${(data.temperature || 0).toFixed(1)}°C</span>
+                            <span class="data-pill">💧 ${(data.humidity || 0).toFixed(1)}%</span>
+                            <span class="data-pill">☀️ ${data.light || 0} lux</span>
+                            <span class="data-pill">📏 ${(data.distance_cm || 0).toFixed(2)} cm</span>
+                            <span class="data-pill" style="background: ${data.led_state ? 'rgba(254, 202, 87, 0.2)' : 'rgba(255, 255, 255, 0.05)'}; border-color: ${data.led_state ? 'rgba(254, 202, 87, 0.5)' : 'rgba(255, 255, 255, 0.1)'};">
+                                ${data.led_state ? '💡 ON' : '⚫ OFF'}
+                            </span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function showOnlineStatus() {
+            const status = document.getElementById('status');
+            status.innerHTML = '<span class="status-dot"></span><span>Conectado</span>';
+            status.classList.add('online');
+        }
+
+        function showOfflineStatus() {
+            const status = document.getElementById('status');
+            status.innerHTML = '<span class="status-dot"></span><span>Desconectado</span>';
+            status.classList.remove('online');
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error');
+            document.getElementById('errorMessage').textContent = message;
+            errorDiv.style.display = 'block';
+        }
+
+        function hideError() {
+            document.getElementById('error').style.display = 'none';
+        }
+
+        function refreshData() {
+            fetchData();
+        }
+
+        // Inicializar
+        console.log('🚀 Dashboard IoT ESP32 iniciado');
+        console.log('📡 API:', API_URL);
+        console.log('🤖 Modo: LED Automático por Sensor de Distancia');
+        
+        fetchData();
+        updateInterval = setInterval(fetchData, 5000);
+
+        window.addEventListener('beforeunload', () => {
+            clearInterval(updateInterval);
+        });
+    </script>
+</body>
+</html>
